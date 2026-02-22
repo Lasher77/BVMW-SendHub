@@ -6,6 +6,7 @@ Usage:
     cd backend
     python seed.py
 """
+import base64
 import io
 import os
 import sys
@@ -131,58 +132,32 @@ def seed():
             db.flush()
 
             # --- Assets (2 dummy images) ---
-            for i, (fname, mime) in enumerate([
-                ("header_bild.png", "image/png"),
-                ("sponsor_logo.jpeg", "image/jpeg"),
-            ], start=1):
-                # Minimal valid 1×1 pixel images
-                if mime == "image/png":
-                    # 1x1 transparent PNG
-                    raw = bytes.fromhex(
-                        "89504e470d0a1a0a0000000d494844520000000100000001"
-                        "0806000000 1f15c4890000000a4944415478016360000000020001"
-                        "e221bc330000000049454e44ae426082"
-                        .replace(" ", "")
-                    )
-                else:
-                    # Minimal JPEG
-                    raw = bytes.fromhex(
-                        "ffd8ffe000104a46494600010100000100010000"
-                        "ffdb004300080606070605080707070909080a0c"
-                        "140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20"
-                        "242e2720222c231c1c2837292c30313434341f27"
-                        "39 3d38 3232 3c4l 3c4b 4e50"
-                        "5050 3021 5555 5557 595c 5e5e 5e3b 4667"
-                        "6b68 6667 6c67 6768 7075 79 7a 79 766f 7778"
-                        "70 6f 7778 7072 72 73 73 73 74 74 7475"
-                        "ffc00011080001000103012200021101031101"
-                        "ffc4001f0000010501010101010100000000000000"
-                        "00010203040506070809 0a0b"
-                        "ffc40 0b51100020102040403040705040400010277"
-                        "00 01020311040521124131 0613516107 2232 8114"
-                        "42 9191 a108 2342 b1 c115 52 d1 f009 3334 6272"
-                        "0a 0925 4316 1718 19 2627 2829 2a3435 36373839"
-                        "3a 4344 4546 47484 94a 5354 5556 5758 595a6364"
-                        "6566 6768 696a 7374 7576 7778 797a 8384 85 8687"
-                        "8889 8a92 9394 9596 9798 999a a2a3 a4a5 a6a7"
-                        "a8a9 aab2 b3b4 b5b6 b7b8 b9ba c2c3 c4c5c6c7c8"
-                        "c9ca d2d3 d4d5 d6d7 d8d9 da e1e2 e3e4 e5e6e7e8"
-                        "e9ea f1f2 f3f4 f5f6 f7f8 f9fa"
-                        "ffda000c03010002110311003f00"
-                        "ffd9"
-                        .replace(" ", "")
-                    )
+            # Minimal valid 1×1 pixel images encoded as base64.
+            # PNG: 1×1 red pixel (RGBA)
+            PNG_1X1 = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQ"
+                "AABjkB6QAAAABJRU5ErkJggg=="
+            )
+            # JPEG: 1×1 grey pixel
+            JPEG_1X1 = base64.b64decode(
+                "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkS"
+                "Ew8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAARC"
+                "AABAAEDASIAAREBASIAAREB/8QAFgABAQEAAAAAAAAAAAAAAAAABgUEB"
+                "AQFBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB"
+                "AQEBAf/aAAwDAQACEQMRAD8Amk2rbWUgPSTRRRVJ//Z"
+            )
 
-                # Use simple placeholder bytes if decode fails
-                placeholder = b"\x00" * 64
-
+            for fname, mime, raw in [
+                ("header_bild.png", "image/png", PNG_1X1),
+                ("sponsor_logo.jpeg", "image/jpeg", JPEG_1X1),
+            ]:
                 asset = CampaignAsset(
                     campaign_id=campaign.id,
                     original_filename=fname,
                     sanitized_filename=fname,
                     storage_path="",
                     mime_type=mime,
-                    file_size=len(placeholder),
+                    file_size=len(raw),
                     is_deleted=False,
                     uploaded_by_id=requester.id,
                     uploaded_at=datetime.now(timezone.utc),
@@ -191,9 +166,8 @@ def seed():
                 db.flush()
 
                 asset_path = f"campaigns/{campaign.id}/assets/{asset.id}-{fname}"
-                storage.save(asset_path, io.BytesIO(placeholder))
+                storage.save(asset_path, io.BytesIO(raw))
                 asset.storage_path = asset_path
-                asset.file_size = len(placeholder)
                 db.flush()
                 print(f"  [+] Asset: {fname}")
 
