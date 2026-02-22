@@ -16,13 +16,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # user_role enum
-    op.execute("CREATE TYPE user_role AS ENUM ('requester', 'marketing')")
-    # campaign_status enum
-    op.execute(
-        "CREATE TYPE campaign_status AS ENUM "
-        "('submitted', 'in_review', 'changes_needed', 'scheduled', 'approved', 'rejected', 'sent')"
-    )
+    # Enum types are created automatically by SQLAlchemy when the tables
+    # that reference them are created below (before_create event).
+    # Do NOT execute CREATE TYPE manually here to avoid DuplicateObject errors.
 
     # departments
     op.create_table(
