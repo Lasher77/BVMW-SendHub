@@ -24,10 +24,11 @@ function toEvents(campaigns: CampaignListItem[]): EventInput[] {
     .map((c) => ({
       id: String(c.id),
       title: c.title,
-      start: c.send_at!,
+      start: c.send_at!.slice(0, 10),
+      allDay: true,
       backgroundColor: STATUS_COLORS[c.status],
       borderColor: STATUS_COLORS[c.status],
-      extendedProps: { status: c.status, department: c.department.name },
+      extendedProps: { status: c.status, department: c.department.name, color: STATUS_COLORS[c.status] },
     }));
 }
 
@@ -150,7 +151,10 @@ export default function CalendarPage() {
             window.location.href = `/campaigns/${info.event.id}`;
           }}
           eventContent={(arg) => (
-            <div className="px-1 py-0.5 overflow-hidden">
+            <div
+              className="px-1 py-0.5 overflow-hidden rounded w-full"
+              style={{ backgroundColor: arg.event.extendedProps.color }}
+            >
               <div className="font-medium text-white truncate text-xs leading-tight">
                 {arg.event.title}
               </div>
