@@ -32,6 +32,7 @@ from app.schemas.campaign import (
     CampaignFileOut,
 )
 from app.services.campaign_service import (
+    EDITABLE_STATUSES,
     apply_status_transition,
     save_asset,
     save_pdf,
@@ -197,18 +198,11 @@ def upload_new_pdf(
 ):
     campaign = _load_campaign(db, campaign_id)
 
-    # Requester can upload new PDF only when changes_needed or submitted
-    if current_user.role == UserRole.requester:
-        if campaign.status not in (CampaignStatus.changes_needed, CampaignStatus.submitted):
-            raise HTTPException(
-                status_code=403,
-                detail="PDF-Upload nur bei Status 'submitted' oder 'changes_needed' erlaubt.",
-            )
-        if campaign.created_by_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Zugriff verweigert.")
+    if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
-    if campaign.status == CampaignStatus.sent:
-        raise HTTPException(status_code=403, detail="Nach dem Versand können keine Dateien mehr geändert werden.")
+    if campaign.status not in EDITABLE_STATUSES:
+        raise HTTPException(status_code=403, detail="Dateien können nach Ablehnung oder Versand nicht mehr geändert werden.")
 
     cf = save_pdf(db, campaign, pdf, current_user)
     db.commit()
@@ -269,13 +263,13 @@ def soft_delete_asset(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from app.auth import require_marketing
-    if current_user.role != UserRole.marketing:
-        raise HTTPException(status_code=403, detail="Nur Marketing darf Assets löschen.")
-
     campaign = _load_campaign(db, campaign_id)
-    if campaign.status == CampaignStatus.sent:
-        raise HTTPException(status_code=403, detail="Nach dem Versand sind Assets read-only.")
+
+    if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Zugriff verweigert.")
+
+    if campaign.status not in EDITABLE_STATUSES:
+        raise HTTPException(status_code=403, detail="Dateien können nach Ablehnung oder Versand nicht mehr geändert werden.")
 
     asset = db.query(CampaignAsset).filter(
         CampaignAsset.id == asset_id,

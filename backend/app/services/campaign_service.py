@@ -81,34 +81,24 @@ def assert_transition(
         )
 
 
-# --------------------------------------------------------------------------- #
-# Asset permissions
-# --------------------------------------------------------------------------- #
-ASSET_UPLOAD_REQUESTER = {
-    CampaignStatus.submitted,
-    CampaignStatus.in_review,
-    CampaignStatus.changes_needed,
-}
-ASSET_UPLOAD_MARKETING = {
+# Statuses in which files/assets may still be modified (by any permitted role).
+# After 'approved' the campaign moves to 'sent' or 'rejected' – both are locked.
+EDITABLE_STATUSES = {
     CampaignStatus.submitted,
     CampaignStatus.in_review,
     CampaignStatus.changes_needed,
     CampaignStatus.scheduled,
     CampaignStatus.approved,
-    CampaignStatus.rejected,
 }
 
-
+# --------------------------------------------------------------------------- #
+# Asset permissions
+# --------------------------------------------------------------------------- #
 def assert_asset_upload_allowed(status: CampaignStatus, role: UserRole) -> None:
-    if role == UserRole.requester and status not in ASSET_UPLOAD_REQUESTER:
+    if status not in EDITABLE_STATUSES:
         raise HTTPException(
             status_code=403,
-            detail="Assets können in diesem Status nicht hochgeladen werden.",
-        )
-    if role == UserRole.marketing and status not in ASSET_UPLOAD_MARKETING:
-        raise HTTPException(
-            status_code=403,
-            detail="Assets können nach dem Versand nicht mehr geändert werden.",
+            detail="Dateien können nach Ablehnung oder Versand nicht mehr geändert werden.",
         )
 
 
