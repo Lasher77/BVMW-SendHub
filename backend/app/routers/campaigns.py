@@ -18,6 +18,8 @@ from app.database import get_db
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_asset import CampaignAsset
 from app.models.campaign_comment import CampaignComment
+from app.models.campaign_file import CampaignFile
+from app.models.campaign_move_log import CampaignMoveLog
 from app.models.department import Department
 from app.models.user import User, UserRole
 from app.schemas.campaign import (
@@ -46,10 +48,10 @@ def _load_campaign(db: Session, campaign_id: int) -> Campaign:
         .options(
             joinedload(Campaign.department),
             joinedload(Campaign.creator),
-            joinedload(Campaign.files).joinedload("uploaded_by"),
-            joinedload(Campaign.assets).joinedload("uploaded_by"),
-            joinedload(Campaign.comments).joinedload("author"),
-            joinedload(Campaign.move_logs).joinedload("moved_by"),
+            joinedload(Campaign.files).joinedload(CampaignFile.uploaded_by),
+            joinedload(Campaign.assets).joinedload(CampaignAsset.uploaded_by),
+            joinedload(Campaign.comments).joinedload(CampaignComment.author),
+            joinedload(Campaign.move_logs).joinedload(CampaignMoveLog.moved_by),
         )
         .filter(Campaign.id == campaign_id)
         .first()
