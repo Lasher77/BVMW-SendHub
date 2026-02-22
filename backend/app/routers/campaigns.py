@@ -36,7 +36,7 @@ from app.services.campaign_service import (
     save_asset,
     save_pdf,
 )
-from app.services.schedule_service import next_available
+from app.services.schedule_service import next_available, validate_email_slot
 from app.storage import storage
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -128,6 +128,9 @@ def create_campaign(
             raise HTTPException(status_code=422, detail="Ungültiges Datumsformat für send_at.")
     else:
         parsed_send_at = next_available(db, channel="email")
+
+    # Validate slot against already scheduled/approved/sent campaigns
+    validate_email_slot(db, parsed_send_at)
 
     # Create campaign record first (need ID for file paths)
     campaign = Campaign(
