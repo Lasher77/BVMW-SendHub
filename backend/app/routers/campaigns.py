@@ -32,7 +32,8 @@ from app.schemas.campaign import (
     CampaignFileOut,
 )
 from app.services.campaign_service import (
-    EDITABLE_STATUSES,
+    MARKETING_EDITABLE_STATUSES,
+    REQUESTER_EDITABLE_STATUSES,
     apply_status_transition,
     save_asset,
     save_pdf,
@@ -201,8 +202,9 @@ def upload_new_pdf(
     if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
-    if campaign.status not in EDITABLE_STATUSES:
-        raise HTTPException(status_code=403, detail="Dateien können nach Ablehnung oder Versand nicht mehr geändert werden.")
+    allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+    if campaign.status not in allowed:
+        raise HTTPException(status_code=403, detail="Dateien können in diesem Status nicht mehr geändert werden.")
 
     cf = save_pdf(db, campaign, pdf, current_user)
     db.commit()
@@ -268,8 +270,9 @@ def soft_delete_asset(
     if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
-    if campaign.status not in EDITABLE_STATUSES:
-        raise HTTPException(status_code=403, detail="Dateien können nach Ablehnung oder Versand nicht mehr geändert werden.")
+    allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+    if campaign.status not in allowed:
+        raise HTTPException(status_code=403, detail="Dateien können in diesem Status nicht mehr geändert werden.")
 
     asset = db.query(CampaignAsset).filter(
         CampaignAsset.id == asset_id,
