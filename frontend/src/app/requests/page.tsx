@@ -4,13 +4,7 @@ import Link from "next/link";
 import { getCampaigns } from "@/lib/api";
 import type { CampaignListItem } from "@/types";
 import StatusBadge from "@/components/StatusBadge";
-
-function formatDate(s: string | null) {
-  if (!s) return "–";
-  return new Date(s).toLocaleDateString("de-DE", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  });
-}
+import { formatDate } from "@/lib/dates";
 
 export default function RequestsPage() {
   const [campaigns, setCampaigns] = useState<CampaignListItem[]>([]);

@@ -5,6 +5,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin, { type EventDropArg } from "@fullcalendar/interaction";
 import type { EventInput, EventApi, DatesSetArg } from "@fullcalendar/core";
 import { getCampaigns, getMoveOptions, updateCampaignStatus } from "@/lib/api";
+import { berlinToISO } from "@/lib/dates";
 import type { CampaignListItem, CampaignStatus } from "@/types";
 import Link from "next/link";
 
@@ -87,7 +88,7 @@ export default function CalendarPage() {
     }
 
     try {
-      const sendAt = `${newDate}T09:00:00+02:00`;
+      const sendAt = berlinToISO(`${newDate}T09:00`);
       await updateCampaignStatus(id, { send_at: sendAt });
       setError(null);
       await load();

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import (
@@ -142,8 +142,8 @@ def create_campaign(
         status=CampaignStatus.submitted,
         send_at=parsed_send_at,
         created_by_id=current_user.id,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(campaign)
     db.flush()  # get campaign.id
@@ -184,7 +184,7 @@ def update_campaign(
             raise HTTPException(status_code=403, detail="Termin kann in diesem Status nicht geändert werden.")
         validate_email_slot(db, body.send_at, campaign_id=campaign.id)
         campaign.send_at = body.send_at
-        campaign.updated_at = datetime.utcnow()
+        campaign.updated_at = datetime.now(timezone.utc)
         db.commit()
         return _load_campaign(db, campaign_id)
 
@@ -371,7 +371,7 @@ def add_comment(
         campaign_id=campaign_id,
         author_id=current_user.id,
         text=body.text,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(comment)
     db.commit()
