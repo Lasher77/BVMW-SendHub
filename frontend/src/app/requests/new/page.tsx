@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDepartments, getNextAvailable, createCampaign } from "@/lib/api";
 import type { Department } from "@/types";
+import { toDatetimeLocalBerlin, berlinToISO } from "@/lib/dates";
 
 export default function NewRequestPage() {
   const router = useRouter();
@@ -27,10 +28,7 @@ export default function NewRequestPage() {
   async function fetchNextAvailable() {
     try {
       const res = await getNextAvailable("email");
-      // Format for datetime-local input: YYYY-MM-DDTHH:mm
-      const dt = new Date(res.next_available);
-      const local = dt.toISOString().slice(0, 16);
-      setSendAt(local);
+      setSendAt(toDatetimeLocalBerlin(res.next_available));
     } catch {}
   }
 
@@ -74,7 +72,7 @@ export default function NewRequestPage() {
       const fd = new FormData();
       fd.append("title", title.trim());
       fd.append("department_id", String(deptId));
-      if (sendAt) fd.append("send_at", new Date(sendAt).toISOString());
+      if (sendAt) fd.append("send_at", berlinToISO(sendAt));
       fd.append("pdf", pdf);
       for (const a of assets) fd.append("assets", a);
 

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import type { Campaign, CampaignStatus, User } from "@/types";
 import StatusBadge from "@/components/StatusBadge";
+import { formatDateTime, toDatetimeLocalBerlin, berlinToISO } from "@/lib/dates";
 
 type AllowedTransition = {
   label: string;
@@ -81,13 +82,6 @@ function AuthedImage({ src, alt, className }: { src: string; alt: string; classN
   return <img src={blobUrl} alt={alt} className={className} />;
 }
 
-function formatDate(s: string | null) {
-  if (!s) return "–";
-  return new Date(s).toLocaleString("de-DE", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
 
 function fmt(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -127,9 +121,9 @@ export default function CampaignDetailPage() {
       setCampaign(c);
       setMe(u);
       if (c.send_at) {
-        const iso = new Date(c.send_at).toISOString().slice(0, 16);
-        setSendAt(iso);
-        setEditSendAt(iso);
+        const berlin = toDatetimeLocalBerlin(c.send_at);
+        setSendAt(berlin);
+        setEditSendAt(berlin);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Fehler");
@@ -146,7 +140,7 @@ export default function CampaignDetailPage() {
     try {
       await updateCampaignStatus(campaign.id, {
         status: pendingTransition.status,
-        send_at: pendingTransition.needsSendAt && sendAt ? new Date(sendAt).toISOString() : undefined,
+        send_at: pendingTransition.needsSendAt && sendAt ? berlinToISO(sendAt) : undefined,
         reason: pendingTransition.needsReason && reason ? reason : undefined,
       });
       setPendingTransition(null);
@@ -164,7 +158,7 @@ export default function CampaignDetailPage() {
     if (!campaign || !editSendAt) return;
     setSavingSendAt(true);
     try {
-      await updateCampaignStatus(campaign.id, { send_at: new Date(editSendAt).toISOString() });
+      await updateCampaignStatus(campaign.id, { send_at: berlinToISO(editSendAt) });
       setError(null);
       await load();
     } catch (e: unknown) {
@@ -249,7 +243,7 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
             <span>{campaign.department.name}</span>
             <span>·</span>
-            <span>Termin: {formatDate(campaign.send_at)}</span>
+            <span>Termin: {formatDateTime(campaign.send_at)}</span>
             <span>·</span>
             <StatusBadge status={campaign.status} />
           </div>
@@ -326,7 +320,7 @@ export default function CampaignDetailPage() {
                       <span className="text-gray-400 text-xs">{fmt(f.file_size)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-400 text-xs">
-                      <span>{formatDate(f.uploaded_at)}</span>
+                      <span>{formatDateTime(f.uploaded_at)}</span>
                       <a
                         href={`/api/campaigns/${campaign.id}/files/${f.id}/download`}
                         className="text-blue-500 hover:underline"
@@ -414,7 +408,7 @@ export default function CampaignDetailPage() {
                       <div className="text-xs text-gray-500 mb-0.5">
                         <span className="font-medium text-gray-700">{c.author.name}</span>
                         {" · "}
-                        {formatDate(c.created_at)}
+                        {formatDateTime(c.created_at)}
                       </div>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">{c.text}</p>
                     </div>
@@ -449,8 +443,8 @@ export default function CampaignDetailPage() {
             <dl className="space-y-2 text-sm">
               <div><dt className="text-gray-400 text-xs">Erstellt von</dt><dd>{campaign.creator.name}</dd></div>
               <div><dt className="text-gray-400 text-xs">Abteilung</dt><dd>{campaign.department.name}</dd></div>
-              <div><dt className="text-gray-400 text-xs">Erstellt am</dt><dd>{formatDate(campaign.created_at)}</dd></div>
-              <div><dt className="text-gray-400 text-xs">Zuletzt geändert</dt><dd>{formatDate(campaign.updated_at)}</dd></div>
+              <div><dt className="text-gray-400 text-xs">Erstellt am</dt><dd>{formatDateTime(campaign.created_at)}</dd></div>
+              <div><dt className="text-gray-400 text-xs">Zuletzt geändert</dt><dd>{formatDateTime(campaign.updated_at)}</dd></div>
               <div>
                 <dt className="text-gray-400 text-xs">Versandtermin</dt>
                 {canEdit ? (
@@ -470,7 +464,7 @@ export default function CampaignDetailPage() {
                     </button>
                   </dd>
                 ) : (
-                  <dd className="font-medium">{formatDate(campaign.send_at)}</dd>
+                  <dd className="font-medium">{formatDateTime(campaign.send_at)}</dd>
                 )}
               </div>
               <div><dt className="text-gray-400 text-xs">Kanal</dt><dd>{campaign.channel}</dd></div>
@@ -486,7 +480,7 @@ export default function CampaignDetailPage() {
                   <li key={l.id} className="text-xs text-gray-600">
                     <div className="font-medium">{l.moved_by.name}</div>
                     <div>
-                      {l.old_send_at ? formatDate(l.old_send_at) : "–"} → {l.new_send_at ? formatDate(l.new_send_at) : "–"}
+                      {l.old_send_at ? formatDateTime(l.old_send_at) : "–"} → {l.new_send_at ? formatDateTime(l.new_send_at) : "–"}
                     </div>
                     {l.reason && <div className="text-gray-400 italic">{l.reason}</div>}
                   </li>

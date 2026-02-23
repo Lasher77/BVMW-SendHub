@@ -3,7 +3,7 @@ Campaign service: status transition validation, file handling, asset management.
 """
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, BinaryIO
 
 from fastapi import HTTPException, UploadFile
@@ -155,7 +155,7 @@ def save_pdf(
         storage_path=rel_path,
         file_size=len(raw),
         uploaded_by_id=uploader.id,
-        uploaded_at=datetime.utcnow(),
+        uploaded_at=datetime.now(timezone.utc),
     )
     db.add(cf)
     db.flush()
@@ -195,7 +195,7 @@ def save_asset(
         mime_type=mime,
         file_size=len(raw),
         uploaded_by_id=uploader.id,
-        uploaded_at=datetime.utcnow(),
+        uploaded_at=datetime.now(timezone.utc),
     )
     db.add(asset)
     db.flush()  # get asset.id
@@ -254,6 +254,6 @@ def apply_status_transition(
 
     # For approved → rejected, reason recommended but not mandatory per spec
     campaign.status = new_status
-    campaign.updated_at = datetime.utcnow()
+    campaign.updated_at = datetime.now(timezone.utc)
     db.flush()
     return campaign
