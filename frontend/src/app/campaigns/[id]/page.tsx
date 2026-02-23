@@ -182,19 +182,18 @@ export default function CampaignDetailPage() {
   if (!campaign || !me) return <p className="text-red-500">Kampagne nicht gefunden.</p>;
 
   const isMarketing = me.role === "marketing";
+  const isOwner = me.id === campaign.creator.id;
   const transitions = isMarketing
     ? MARKETING_TRANSITIONS[campaign.status]
     : REQUESTER_TRANSITIONS[campaign.status];
 
-  const isSent = campaign.status === "sent";
-  const canUploadPdf = !isSent && (
-    isMarketing ||
-    ["submitted", "changes_needed"].includes(campaign.status)
-  );
-  const canUploadAsset = !isSent && (
-    isMarketing ||
-    ["submitted", "in_review", "changes_needed"].includes(campaign.status)
-  );
+  const EDITABLE_STATUSES: CampaignStatus[] = [
+    "submitted", "in_review", "changes_needed", "scheduled", "approved",
+  ];
+  const canEdit = EDITABLE_STATUSES.includes(campaign.status);
+  const canUploadPdf = canEdit && (isMarketing || isOwner);
+  const canUploadAsset = canEdit && (isMarketing || isOwner);
+  const canDeleteAsset = canEdit && (isMarketing || isOwner);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -334,7 +333,7 @@ export default function CampaignDetailPage() {
                     <div key={a.id} className="border rounded-lg overflow-hidden group relative">
                       <div className="aspect-video bg-gray-100 flex items-center justify-center">
                         <img
-                          src={`/api/assets/${a.id}/download`}
+                          src={`/api/campaigns/assets/${a.id}/download`}
                           alt={a.original_filename}
                           className="object-cover w-full h-full"
                           onError={(e) => {
@@ -346,7 +345,7 @@ export default function CampaignDetailPage() {
                         <p className="text-xs text-gray-600 truncate">{a.original_filename}</p>
                         <p className="text-xs text-gray-400">{fmt(a.file_size)}</p>
                       </div>
-                      {isMarketing && !isSent && (
+                      {canDeleteAsset && (
                         <button
                           onClick={() => handleDeleteAsset(a.id)}
                           className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs hidden group-hover:flex items-center justify-center"
