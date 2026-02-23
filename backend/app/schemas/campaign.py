@@ -82,7 +82,7 @@ class CampaignListItem(BaseModel):
 
 
 class CampaignStatusUpdate(BaseModel):
-    status: CampaignStatus
+    status: CampaignStatus | None = None   # None → nur send_at aktualisieren
     send_at: datetime | None = None
     reason: str | None = None
 

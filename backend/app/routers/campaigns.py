@@ -175,6 +175,19 @@ def update_campaign(
     if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
+    # send_at-only update (no status transition)
+    if body.status is None:
+        if body.send_at is None:
+            raise HTTPException(status_code=422, detail="send_at erforderlich wenn kein Status angegeben.")
+        allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+        if campaign.status not in allowed:
+            raise HTTPException(status_code=403, detail="Termin kann in diesem Status nicht geändert werden.")
+        validate_email_slot(db, body.send_at, campaign_id=campaign.id)
+        campaign.send_at = body.send_at
+        campaign.updated_at = datetime.utcnow()
+        db.commit()
+        return _load_campaign(db, campaign_id)
+
     apply_status_transition(
         db,
         campaign,
