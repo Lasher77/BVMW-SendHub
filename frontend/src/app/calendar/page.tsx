@@ -99,11 +99,16 @@ export default function CalendarPage() {
     setValidDates(new Set());
   }
 
+  // Force FullCalendar to re-render day cells whenever validDates changes
+  useEffect(() => {
+    calRef.current?.getApi().render();
+  }, [validDates, draggingId]);
+
   // Colour calendar days by validity during drag
   function dayCellClassNames(arg: { date: Date }) {
     if (!draggingId || validDates.size === 0) return [];
     const d = arg.date.toISOString().slice(0, 10);
-    return validDates.has(d) ? ["bg-green-50"] : ["bg-red-50 opacity-60"];
+    return validDates.has(d) ? ["sh-valid-slot"] : ["sh-invalid-slot"];
   }
 
   return (
@@ -134,6 +139,11 @@ export default function CalendarPage() {
           </span>
         ))}
       </div>
+
+      <style>{`
+        .sh-valid-slot { background-color: rgba(134, 239, 172, 0.35) !important; }
+        .sh-invalid-slot { background-color: rgba(252, 165, 165, 0.25) !important; opacity: 0.6; }
+      `}</style>
 
       <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
         <FullCalendar
