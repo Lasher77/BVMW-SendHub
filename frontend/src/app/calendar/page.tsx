@@ -99,9 +99,12 @@ export default function CalendarPage() {
     setValidDates(new Set());
   }
 
-  // Force FullCalendar to re-render day cells whenever validDates changes
+  // Force FullCalendar to re-render day cells whenever validDates changes.
+  // setTimeout defers the call out of React's render cycle to avoid the
+  // flushSync-inside-lifecycle error in React 18.
   useEffect(() => {
-    calRef.current?.getApi().render();
+    const id = setTimeout(() => calRef.current?.getApi().render(), 0);
+    return () => clearTimeout(id);
   }, [validDates, draggingId]);
 
   // Colour calendar days by validity during drag
