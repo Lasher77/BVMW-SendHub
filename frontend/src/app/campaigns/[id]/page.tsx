@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getCampaign,
@@ -61,6 +61,25 @@ const REQUESTER_TRANSITIONS: Record<CampaignStatus, AllowedTransition[]> = {
   rejected: [],
   sent: [],
 };
+
+function AuthedImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = typeof window !== "undefined"
+      ? (localStorage.getItem("x-user") || "requester@bvmw.example")
+      : "";
+    let url: string | null = null;
+    fetch(src, { headers: { "X-User": user } })
+      .then((r) => r.blob())
+      .then((blob) => { url = URL.createObjectURL(blob); setBlobUrl(url); })
+      .catch(() => {});
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [src]);
+
+  if (!blobUrl) return <div className={className} />;
+  return <img src={blobUrl} alt={alt} className={className} />;
+}
 
 function formatDate(s: string | null) {
   if (!s) return "–";
@@ -187,10 +206,11 @@ export default function CampaignDetailPage() {
     ? MARKETING_TRANSITIONS[campaign.status]
     : REQUESTER_TRANSITIONS[campaign.status];
 
-  const EDITABLE_STATUSES: CampaignStatus[] = [
-    "submitted", "in_review", "changes_needed", "scheduled", "approved",
-  ];
-  const canEdit = EDITABLE_STATUSES.includes(campaign.status);
+  const marketingEditable: CampaignStatus[] = ["submitted", "in_review", "changes_needed", "scheduled", "approved"];
+  const requesterEditable: CampaignStatus[] = ["submitted", "in_review", "changes_needed", "scheduled"];
+  const canEdit = isMarketing
+    ? marketingEditable.includes(campaign.status)
+    : requesterEditable.includes(campaign.status);
   const canUploadPdf = canEdit && (isMarketing || isOwner);
   const canUploadAsset = canEdit && (isMarketing || isOwner);
   const canDeleteAsset = canEdit && (isMarketing || isOwner);
@@ -332,13 +352,10 @@ export default function CampaignDetailPage() {
                   .map((a) => (
                     <div key={a.id} className="border rounded-lg overflow-hidden group relative">
                       <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                        <img
+                        <AuthedImage
                           src={`/api/campaigns/assets/${a.id}/download`}
                           alt={a.original_filename}
                           className="object-cover w-full h-full"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='%239ca3af' font-size='12'%3EBild%3C/text%3E%3C/svg%3E";
-                          }}
                         />
                       </div>
                       <div className="p-2">
