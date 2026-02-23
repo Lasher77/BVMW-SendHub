@@ -88,7 +88,7 @@ export const createCampaign = (formData: FormData) =>
 
 export const updateCampaignStatus = (
   id: number,
-  data: { status: CampaignStatus; send_at?: string | null; reason?: string | null }
+  data: { status?: CampaignStatus; send_at?: string | null; reason?: string | null }
 ) =>
   request<Campaign>(`/campaigns/${id}`, {
     method: "PATCH",

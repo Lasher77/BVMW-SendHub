@@ -88,7 +88,7 @@ export default function CalendarPage() {
 
     try {
       const sendAt = `${newDate}T09:00:00+02:00`;
-      await updateCampaignStatus(id, { status: "scheduled", send_at: sendAt });
+      await updateCampaignStatus(id, { send_at: sendAt });
       setError(null);
       await load();
     } catch (e: unknown) {

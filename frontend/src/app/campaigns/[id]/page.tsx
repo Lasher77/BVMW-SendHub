@@ -109,6 +109,10 @@ export default function CampaignDetailPage() {
   const [reason, setReason] = useState("");
   const [transitioning, setTransitioning] = useState(false);
 
+  // Inline send_at editor
+  const [editSendAt, setEditSendAt] = useState("");
+  const [savingSendAt, setSavingSendAt] = useState(false);
+
   // Comment
   const [commentText, setCommentText] = useState("");
   const [commenting, setCommenting] = useState(false);
@@ -122,7 +126,11 @@ export default function CampaignDetailPage() {
       const [c, u] = await Promise.all([getCampaign(parseInt(id)), getMe()]);
       setCampaign(c);
       setMe(u);
-      if (c.send_at) setSendAt(new Date(c.send_at).toISOString().slice(0, 16));
+      if (c.send_at) {
+        const iso = new Date(c.send_at).toISOString().slice(0, 16);
+        setSendAt(iso);
+        setEditSendAt(iso);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Fehler");
     } finally {
@@ -149,6 +157,20 @@ export default function CampaignDetailPage() {
       setError(e instanceof Error ? e.message : "Fehler");
     } finally {
       setTransitioning(false);
+    }
+  }
+
+  async function handleSaveSendAt() {
+    if (!campaign || !editSendAt) return;
+    setSavingSendAt(true);
+    try {
+      await updateCampaignStatus(campaign.id, { send_at: new Date(editSendAt).toISOString() });
+      setError(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Fehler beim Speichern des Termins");
+    } finally {
+      setSavingSendAt(false);
     }
   }
 
@@ -431,7 +453,25 @@ export default function CampaignDetailPage() {
               <div><dt className="text-gray-400 text-xs">Zuletzt geändert</dt><dd>{formatDate(campaign.updated_at)}</dd></div>
               <div>
                 <dt className="text-gray-400 text-xs">Versandtermin</dt>
-                <dd className="font-medium">{formatDate(campaign.send_at)}</dd>
+                {canEdit ? (
+                  <dd className="mt-1 space-y-1">
+                    <input
+                      type="datetime-local"
+                      value={editSendAt}
+                      onChange={(e) => setEditSendAt(e.target.value)}
+                      className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={handleSaveSendAt}
+                      disabled={savingSendAt || editSendAt === sendAt}
+                      className="w-full px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
+                    >
+                      {savingSendAt ? "Speichert…" : "Termin speichern"}
+                    </button>
+                  </dd>
+                ) : (
+                  <dd className="font-medium">{formatDate(campaign.send_at)}</dd>
+                )}
               </div>
               <div><dt className="text-gray-400 text-xs">Kanal</dt><dd>{campaign.channel}</dd></div>
             </dl>
