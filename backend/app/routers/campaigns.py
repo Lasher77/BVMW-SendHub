@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -38,6 +39,11 @@ from app.services.campaign_service import (
     apply_status_transition,
     save_asset,
     save_pdf,
+)
+from app.services.notification_service import (
+    notify_new_campaign,
+    notify_new_comment,
+    notify_status_change,
 )
 from app.services.schedule_service import next_available, validate_email_slot
 from app.storage import storage
@@ -131,6 +137,7 @@ def get_campaign(
 # --------------------------------------------------------------------------- #
 @router.post("", response_model=CampaignOut, status_code=201)
 def create_campaign(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     department_id: int = Form(...),
     requester_email: str = Form(...),
@@ -195,7 +202,9 @@ def create_campaign(
             save_asset(db, campaign, asset_file, requester)
 
     db.commit()
-    return _load_campaign(db, campaign.id)
+    loaded = _load_campaign(db, campaign.id)
+    background_tasks.add_task(notify_new_campaign, db, loaded, current_user)
+    return loaded
 
 
 # --------------------------------------------------------------------------- #
@@ -205,6 +214,7 @@ def create_campaign(
 def update_campaign(
     campaign_id: int,
     body: CampaignStatusUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -226,6 +236,7 @@ def update_campaign(
         db.commit()
         return _load_campaign(db, campaign_id)
 
+    old_status = campaign.status
     apply_status_transition(
         db,
         campaign,
@@ -235,7 +246,11 @@ def update_campaign(
         reason=body.reason,
     )
     db.commit()
-    return _load_campaign(db, campaign_id)
+    loaded = _load_campaign(db, campaign_id)
+    background_tasks.add_task(
+        notify_status_change, db, loaded, old_status, body.status, current_user, body.reason,
+    )
+    return loaded
 
 
 # --------------------------------------------------------------------------- #
@@ -398,6 +413,7 @@ def download_pdf(
 def add_comment(
     campaign_id: int,
     body: CommentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -415,4 +431,5 @@ def add_comment(
     db.commit()
     db.refresh(comment)
     comment.author = current_user
+    background_tasks.add_task(notify_new_comment, db, campaign, body.text, current_user)
     return comment

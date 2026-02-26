@@ -13,6 +13,17 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key"
     ENVIRONMENT: str = "development"
 
+    # E-Mail / SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@sendhub.local"
+    SMTP_FROM_NAME: str = "BVMW SendHub"
+    SMTP_USE_TLS: bool = True
+    EMAIL_NOTIFICATIONS_ENABLED: bool = False
+    APP_BASE_URL: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
