@@ -62,8 +62,10 @@ def seed():
             depts[name] = dept
 
         # ---------- Users ----------
+        from app.auth import hash_password
+
         requester_email = "requester@bvmw.example"
-        marketing_email = "marketing@bvmw.example"
+        moderator_email = "moderator@bvmw.example"
 
         requester = db.query(User).filter(User.email == requester_email).first()
         if not requester:
@@ -80,20 +82,23 @@ def seed():
         else:
             print(f"  [~] User '{requester_email}' exists, skipping")
 
-        marketer = db.query(User).filter(User.email == marketing_email).first()
-        if not marketer:
-            marketer = User(
-                email=marketing_email,
+        moderator = db.query(User).filter(User.email == moderator_email).first()
+        if not moderator:
+            moderator = User(
+                email=moderator_email,
                 name="Bernd Schmidt",
-                role=UserRole.marketing,
+                role=UserRole.moderator,
+                password_hash=hash_password("moderator123"),
+                is_admin=True,
+                is_active=True,
                 department_id=None,
             )
-            db.add(marketer)
+            db.add(moderator)
             db.commit()
-            db.refresh(marketer)
-            print(f"  [+] User (marketing): {marketing_email}")
+            db.refresh(moderator)
+            print(f"  [+] User (moderator/admin): {moderator_email}")
         else:
-            print(f"  [~] User '{marketing_email}' exists, skipping")
+            print(f"  [~] User '{moderator_email}' exists, skipping")
 
         # ---------- Example Campaign ----------
         existing = db.query(Campaign).filter(Campaign.title == "Demo Newsletter April 2025").first()
@@ -178,8 +183,8 @@ def seed():
             print("  [~] Demo campaign exists, skipping")
 
         print("\nSeed complete!")
-        print(f"  Requester login: X-User: {requester_email}")
-        print(f"  Marketing login: X-User: {marketing_email}")
+        print(f"  Requester (dev): X-User: {requester_email}")
+        print(f"  Moderator login: {moderator_email} / moderator123")
 
     finally:
         db.close()

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import AuthGuard from "@/components/AuthGuard";
 
 export const metadata: Metadata = {
   title: "BVMW SendHub",
@@ -16,7 +17,9 @@ export default function RootLayout({
     <html lang="de">
       <body className="min-h-screen bg-gray-50 text-gray-900">
         <Nav />
-        <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+        <AuthGuard>
+          <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+        </AuthGuard>
       </body>
     </html>
   );

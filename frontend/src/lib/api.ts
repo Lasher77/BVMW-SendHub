@@ -8,13 +8,54 @@ import type {
   AppSettings,
   User,
   CampaignStatus,
+  LoginResponse,
+  SetupStatus,
 } from "@/types";
 
 const BASE = "/api";
 
-function getUser(): string {
+// ---------------------------------------------------------------------------
+// Token management
+// ---------------------------------------------------------------------------
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("auth_token");
+}
+
+export function setToken(token: string) {
+  localStorage.setItem("auth_token", token);
+}
+
+export function clearToken() {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+}
+
+export function getStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("auth_user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: User) {
+  localStorage.setItem("auth_user", JSON.stringify(user));
+}
+
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
+
+// ---------------------------------------------------------------------------
+// Base request helper
+// ---------------------------------------------------------------------------
+function getDevUser(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("x-user") || "requester@bvmw.example";
+  return localStorage.getItem("x-user") || "";
 }
 
 async function request<T>(
@@ -22,7 +63,41 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
-    "X-User": getUser(),
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  // Auth: prefer JWT token, fall back to X-User for dev mode
+  const token = getToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    const devUser = getDevUser();
+    if (devUser) {
+      headers["X-User"] = devUser;
+    }
+  }
+
+  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const json = await res.json();
+      detail = json?.detail?.message || json?.detail || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+/** Public request — no auth headers attached. */
+async function publicRequest<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> | undefined),
   };
 
@@ -42,10 +117,73 @@ async function request<T>(
 }
 
 // ---------- Auth ----------
+export const login = async (
+  email: string,
+  password: string
+): Promise<LoginResponse> => {
+  const resp = await publicRequest<LoginResponse>("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  setToken(resp.access_token);
+  setStoredUser(resp.user);
+  return resp;
+};
+
+export const logout = () => {
+  clearToken();
+};
+
+export const getSetupStatus = () =>
+  publicRequest<SetupStatus>("/setup-status");
+
+export const setup = async (
+  name: string,
+  email: string,
+  password: string
+): Promise<LoginResponse> => {
+  const resp = await publicRequest<LoginResponse>("/setup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password }),
+  });
+  setToken(resp.access_token);
+  setStoredUser(resp.user);
+  return resp;
+};
+
 export const getMe = () => request<User>("/me");
 
+// ---------- Users (admin) ----------
+export const getUsers = () => request<User[]>("/users");
+
+export const createUser = (data: {
+  name: string;
+  email: string;
+  password: string;
+}) =>
+  request<User>("/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const updateUser = (
+  id: number,
+  data: { name?: string; password?: string; is_active?: boolean }
+) =>
+  request<User>(`/users/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const deleteUser = (id: number) =>
+  request<void>(`/users/${id}`, { method: "DELETE" });
+
 // ---------- Departments ----------
-export const getDepartments = () => request<Department[]>("/departments");
+export const getDepartments = () => publicRequest<Department[]>("/departments");
 export const createDepartment = (data: { name: string; is_active: boolean }) =>
   request<Department>("/departments", {
     method: "POST",
@@ -83,8 +221,9 @@ export const getCampaigns = (params?: { status?: string; department_id?: number 
 export const getCampaign = (id: number) =>
   request<Campaign>(`/campaigns/${id}`);
 
+/** Campaign creation is public (no auth). Requester email/name are in the FormData. */
 export const createCampaign = (formData: FormData) =>
-  request<Campaign>("/campaigns", { method: "POST", body: formData });
+  publicRequest<Campaign>("/campaigns", { method: "POST", body: formData });
 
 export const updateCampaignStatus = (
   id: number,
@@ -123,7 +262,7 @@ export const addComment = (id: number, text: string) =>
 
 // ---------- Schedule ----------
 export const getNextAvailable = (channel = "email") =>
-  request<{ next_available: string }>(`/schedule/next-available?channel=${channel}`);
+  publicRequest<{ next_available: string }>(`/schedule/next-available?channel=${channel}`);
 
 export const getMoveOptions = (id: number, start: string, end: string) =>
   request<{ valid_dates: string[] }>(`/campaigns/${id}/move-options?start=${start}&end=${end}`);
