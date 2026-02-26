@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -43,6 +44,8 @@ from app.storage import storage
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
+BVMW_EMAIL_RE = re.compile(r"^[^@\s]+@bvmw\.de$", re.IGNORECASE)
+
 
 def _load_campaign(db: Session, campaign_id: int) -> Campaign:
     c = (
@@ -61,6 +64,27 @@ def _load_campaign(db: Session, campaign_id: int) -> Campaign:
     if not c:
         raise HTTPException(status_code=404, detail="Kampagne nicht gefunden.")
     return c
+
+
+def _is_moderator(user: User) -> bool:
+    return user.role in (UserRole.moderator, UserRole.marketing)
+
+
+def _get_or_create_requester(db: Session, email: str, name: str) -> User:
+    """Look up or auto-create a requester User record."""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        return user
+    user = User(
+        email=email,
+        name=name,
+        role=UserRole.requester,
+        is_admin=False,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+    return user
 
 
 # --------------------------------------------------------------------------- #
@@ -103,18 +127,32 @@ def get_campaign(
 
 
 # --------------------------------------------------------------------------- #
-# Create (multipart)
+# Create (multipart) — PUBLIC, no auth required
 # --------------------------------------------------------------------------- #
 @router.post("", response_model=CampaignOut, status_code=201)
 def create_campaign(
     title: str = Form(...),
     department_id: int = Form(...),
+    requester_email: str = Form(...),
+    requester_name: str = Form(...),
     send_at: Optional[str] = Form(default=None),
     pdf: UploadFile = File(...),
     assets: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
+    # Validate @bvmw.de email
+    if not BVMW_EMAIL_RE.match(requester_email):
+        raise HTTPException(
+            status_code=422,
+            detail="Nur @bvmw.de E-Mail-Adressen sind erlaubt.",
+        )
+
+    if not requester_name.strip():
+        raise HTTPException(status_code=422, detail="Name ist erforderlich.")
+
+    # Get or create requester user record
+    requester = _get_or_create_requester(db, requester_email.lower().strip(), requester_name.strip())
+
     # Validate department
     dept = db.query(Department).filter(
         Department.id == department_id, Department.is_active == True
@@ -141,7 +179,7 @@ def create_campaign(
         department_id=department_id,
         status=CampaignStatus.submitted,
         send_at=parsed_send_at,
-        created_by_id=current_user.id,
+        created_by_id=requester.id,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -149,12 +187,12 @@ def create_campaign(
     db.flush()  # get campaign.id
 
     # Save PDF
-    save_pdf(db, campaign, pdf, current_user)
+    save_pdf(db, campaign, pdf, requester)
 
     # Save optional assets (one by one, no ZIP)
     for asset_file in assets:
         if asset_file.filename:
-            save_asset(db, campaign, asset_file, current_user)
+            save_asset(db, campaign, asset_file, requester)
 
     db.commit()
     return _load_campaign(db, campaign.id)
@@ -179,7 +217,7 @@ def update_campaign(
     if body.status is None:
         if body.send_at is None:
             raise HTTPException(status_code=422, detail="send_at erforderlich wenn kein Status angegeben.")
-        allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+        allowed = MARKETING_EDITABLE_STATUSES if _is_moderator(current_user) else REQUESTER_EDITABLE_STATUSES
         if campaign.status not in allowed:
             raise HTTPException(status_code=403, detail="Termin kann in diesem Status nicht geändert werden.")
         validate_email_slot(db, body.send_at, campaign_id=campaign.id)
@@ -215,7 +253,7 @@ def upload_new_pdf(
     if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
-    allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+    allowed = MARKETING_EDITABLE_STATUSES if _is_moderator(current_user) else REQUESTER_EDITABLE_STATUSES
     if campaign.status not in allowed:
         raise HTTPException(status_code=403, detail="Dateien können in diesem Status nicht mehr geändert werden.")
 
@@ -283,7 +321,7 @@ def soft_delete_asset(
     if current_user.role == UserRole.requester and campaign.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Zugriff verweigert.")
 
-    allowed = MARKETING_EDITABLE_STATUSES if current_user.role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+    allowed = MARKETING_EDITABLE_STATUSES if _is_moderator(current_user) else REQUESTER_EDITABLE_STATUSES
     if campaign.status not in allowed:
         raise HTTPException(status_code=403, detail="Dateien können in diesem Status nicht mehr geändert werden.")
 

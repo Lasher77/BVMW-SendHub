@@ -1,11 +1,23 @@
-export type UserRole = "requester" | "marketing";
+export type UserRole = "requester" | "moderator" | "marketing";
 
 export interface User {
   id: number;
   email: string;
   name: string;
   role: UserRole;
+  is_admin: boolean;
+  is_active: boolean;
   department_id: number | null;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface SetupStatus {
+  needs_setup: boolean;
 }
 
 export interface Department {

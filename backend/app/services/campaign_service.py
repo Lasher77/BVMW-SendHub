@@ -24,6 +24,14 @@ ALLOWED_ASSET_MIME = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 # Statuses that require a valid send_at and pass slot validation
 SLOT_REQUIRED_STATUSES = {CampaignStatus.scheduled, CampaignStatus.approved}
 
+
+def _effective_role(role: UserRole) -> UserRole:
+    """Map legacy 'marketing' to 'moderator' for transition lookups."""
+    if role == UserRole.marketing:
+        return UserRole.moderator
+    return role
+
+
 # --------------------------------------------------------------------------- #
 # Transition matrix
 # --------------------------------------------------------------------------- #
@@ -31,30 +39,30 @@ SLOT_REQUIRED_STATUSES = {CampaignStatus.scheduled, CampaignStatus.approved}
 TRANSITIONS: dict[tuple[CampaignStatus, UserRole], set[CampaignStatus]] = {
     # REQUESTER
     (CampaignStatus.changes_needed, UserRole.requester): {CampaignStatus.submitted},
-    # MARKETING
-    (CampaignStatus.submitted, UserRole.marketing): {
+    # MODERATOR (was MARKETING)
+    (CampaignStatus.submitted, UserRole.moderator): {
         CampaignStatus.in_review,
         CampaignStatus.changes_needed,
         CampaignStatus.scheduled,
         CampaignStatus.approved,
         CampaignStatus.rejected,
     },
-    (CampaignStatus.in_review, UserRole.marketing): {
+    (CampaignStatus.in_review, UserRole.moderator): {
         CampaignStatus.changes_needed,
         CampaignStatus.scheduled,
         CampaignStatus.approved,
         CampaignStatus.rejected,
     },
-    (CampaignStatus.changes_needed, UserRole.marketing): {
+    (CampaignStatus.changes_needed, UserRole.moderator): {
         CampaignStatus.in_review,
         CampaignStatus.rejected,
     },
-    (CampaignStatus.scheduled, UserRole.marketing): {
+    (CampaignStatus.scheduled, UserRole.moderator): {
         CampaignStatus.approved,
         CampaignStatus.rejected,
         CampaignStatus.sent,
     },
-    (CampaignStatus.approved, UserRole.marketing): {
+    (CampaignStatus.approved, UserRole.moderator): {
         CampaignStatus.scheduled,
         CampaignStatus.rejected,
         CampaignStatus.sent,
@@ -67,7 +75,7 @@ def assert_transition(
     target: CampaignStatus,
     role: UserRole,
 ) -> None:
-    allowed = TRANSITIONS.get((current, role), set())
+    allowed = TRANSITIONS.get((current, _effective_role(role)), set())
     if target not in allowed:
         raise HTTPException(
             status_code=422,
@@ -81,7 +89,7 @@ def assert_transition(
         )
 
 
-# Statuses in which Marketing may still modify files/assets.
+# Statuses in which Moderators may still modify files/assets.
 MARKETING_EDITABLE_STATUSES = {
     CampaignStatus.submitted,
     CampaignStatus.in_review,
@@ -103,7 +111,8 @@ REQUESTER_EDITABLE_STATUSES = {
 # Asset permissions
 # --------------------------------------------------------------------------- #
 def assert_asset_upload_allowed(status: CampaignStatus, role: UserRole) -> None:
-    allowed = MARKETING_EDITABLE_STATUSES if role == UserRole.marketing else REQUESTER_EDITABLE_STATUSES
+    eff = _effective_role(role)
+    allowed = MARKETING_EDITABLE_STATUSES if eff == UserRole.moderator else REQUESTER_EDITABLE_STATUSES
     if status not in allowed:
         raise HTTPException(
             status_code=403,

@@ -8,6 +8,8 @@ import { toDatetimeLocalBerlin, berlinToISO } from "@/lib/dates";
 export default function NewRequestPage() {
   const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [requesterName, setRequesterName] = useState("");
+  const [requesterEmail, setRequesterEmail] = useState("");
   const [title, setTitle] = useState("");
   const [deptId, setDeptId] = useState<number | "">("");
   const [sendAt, setSendAt] = useState("");
@@ -15,6 +17,7 @@ export default function NewRequestPage() {
   const [assets, setAssets] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const pdfRef = useRef<HTMLInputElement>(null);
   const assetRef = useRef<HTMLInputElement>(null);
 
@@ -54,10 +57,20 @@ export default function NewRequestPage() {
     setAssets((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  function validateBvmwEmail(email: string): boolean {
+    return /^[^@\s]+@bvmw\.de$/i.test(email);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
+    if (!requesterName.trim()) { setError("Bitte Ihren Namen angeben."); return; }
+    if (!requesterEmail.trim()) { setError("Bitte Ihre E-Mail angeben."); return; }
+    if (!validateBvmwEmail(requesterEmail.trim())) {
+      setError("Nur @bvmw.de E-Mail-Adressen sind erlaubt.");
+      return;
+    }
     if (!title.trim()) { setError("Bitte Titel angeben."); return; }
     if (!deptId) { setError("Bitte Abteilung auswählen."); return; }
     if (!pdf) { setError("Bitte PDF hochladen (Pflichtfeld)."); return; }
@@ -70,19 +83,50 @@ export default function NewRequestPage() {
     setLoading(true);
     try {
       const fd = new FormData();
+      fd.append("requester_name", requesterName.trim());
+      fd.append("requester_email", requesterEmail.trim());
       fd.append("title", title.trim());
       fd.append("department_id", String(deptId));
       if (sendAt) fd.append("send_at", berlinToISO(sendAt));
       fd.append("pdf", pdf);
       for (const a of assets) fd.append("assets", a);
 
-      const campaign = await createCampaign(fd);
-      router.push(`/campaigns/${campaign.id}`);
+      await createCampaign(fd);
+      setSubmitted(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Fehler beim Erstellen");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (submitted) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-green-100 p-8 text-center">
+          <div className="text-green-600 text-4xl mb-4">&#10003;</div>
+          <h1 className="text-xl font-semibold mb-2">Anfrage eingereicht!</h1>
+          <p className="text-sm text-gray-600 mb-6">
+            Ihre Email-Anfrage wurde erfolgreich eingereicht und wird vom
+            Marketing-Team bearbeitet. Sie erhalten eine Benachrichtigung an{" "}
+            <strong>{requesterEmail}</strong>.
+          </p>
+          <button
+            onClick={() => {
+              setSubmitted(false);
+              setTitle("");
+              setPdf(null);
+              setAssets([]);
+              setDeptId("");
+              fetchNextAvailable();
+            }}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            Weitere Anfrage einreichen
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -96,6 +140,30 @@ export default function NewRequestPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        {/* Requester info */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Ihr Name *</label>
+            <input
+              type="text"
+              value={requesterName}
+              onChange={(e) => setRequesterName(e.target.value)}
+              placeholder="Max Mustermann"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Ihre E-Mail (@bvmw.de) *</label>
+            <input
+              type="email"
+              value={requesterEmail}
+              onChange={(e) => setRequesterEmail(e.target.value)}
+              placeholder="name@bvmw.de"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-sm font-medium mb-1">Titel *</label>
@@ -116,7 +184,7 @@ export default function NewRequestPage() {
             onChange={(e) => setDeptId(e.target.value ? parseInt(e.target.value) : "")}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Bitte wählen…</option>
+            <option value="">Bitte wählen...</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -158,14 +226,14 @@ export default function NewRequestPage() {
           >
             {pdf ? (
               <div className="flex items-center justify-center gap-2 text-sm">
-                <span className="text-blue-600">📄 {pdf.name}</span>
+                <span className="text-blue-600">{pdf.name}</span>
                 <span className="text-gray-400">({(pdf.size / 1024).toFixed(0)} KB)</span>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setPdf(null); }}
                   className="text-red-400 hover:text-red-600 font-bold"
                 >
-                  ×
+                  x
                 </button>
               </div>
             ) : (
@@ -194,7 +262,7 @@ export default function NewRequestPage() {
             className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-gray-50"
             onClick={() => assetRef.current?.click()}
           >
-            <p className="text-sm text-gray-500">Bild hinzufügen (PNG, JPEG, WebP, GIF · max. 10 MB)</p>
+            <p className="text-sm text-gray-500">Bild hinzufügen (PNG, JPEG, WebP, GIF - max. 10 MB)</p>
           </div>
           <input
             ref={assetRef}
@@ -208,14 +276,14 @@ export default function NewRequestPage() {
             <ul className="mt-2 space-y-1">
               {assets.map((a, i) => (
                 <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                  <span>🖼 {a.name}</span>
+                  <span>{a.name}</span>
                   <span className="text-gray-400">({(a.size / 1024).toFixed(0)} KB)</span>
                   <button
                     type="button"
                     onClick={() => removeAsset(i)}
                     className="text-red-400 hover:text-red-600 font-bold"
                   >
-                    ×
+                    x
                   </button>
                 </li>
               ))}
@@ -229,7 +297,7 @@ export default function NewRequestPage() {
             disabled={loading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
           >
-            {loading ? "Wird eingereicht…" : "Anfrage einreichen"}
+            {loading ? "Wird eingereicht..." : "Anfrage einreichen"}
           </button>
           <button
             type="button"

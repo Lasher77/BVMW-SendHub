@@ -67,11 +67,16 @@ function AuthedImage({ src, alt, className }: { src: string; alt: string; classN
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const user = typeof window !== "undefined"
-      ? (localStorage.getItem("x-user") || "requester@bvmw.example")
-      : "";
+    const headers: Record<string, string> = {};
+    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    } else {
+      const devUser = typeof window !== "undefined" ? localStorage.getItem("x-user") : null;
+      if (devUser) headers["X-User"] = devUser;
+    }
     let url: string | null = null;
-    fetch(src, { headers: { "X-User": user } })
+    fetch(src, { headers })
       .then((r) => r.blob())
       .then((blob) => { url = URL.createObjectURL(blob); setBlobUrl(url); })
       .catch(() => {});
@@ -216,20 +221,20 @@ export default function CampaignDetailPage() {
   if (loading) return <p className="text-gray-400 text-sm">Lade…</p>;
   if (!campaign || !me) return <p className="text-red-500">Kampagne nicht gefunden.</p>;
 
-  const isMarketing = me.role === "marketing";
+  const isModerator = me.role === "moderator" || me.role === "marketing";
   const isOwner = me.id === campaign.creator.id;
-  const transitions = isMarketing
+  const transitions = isModerator
     ? MARKETING_TRANSITIONS[campaign.status]
     : REQUESTER_TRANSITIONS[campaign.status];
 
-  const marketingEditable: CampaignStatus[] = ["submitted", "in_review", "changes_needed", "scheduled", "approved"];
+  const moderatorEditable: CampaignStatus[] = ["submitted", "in_review", "changes_needed", "scheduled", "approved"];
   const requesterEditable: CampaignStatus[] = ["submitted", "in_review", "changes_needed", "scheduled"];
-  const canEdit = isMarketing
-    ? marketingEditable.includes(campaign.status)
+  const canEdit = isModerator
+    ? moderatorEditable.includes(campaign.status)
     : requesterEditable.includes(campaign.status);
-  const canUploadPdf = canEdit && (isMarketing || isOwner);
-  const canUploadAsset = canEdit && (isMarketing || isOwner);
-  const canDeleteAsset = canEdit && (isMarketing || isOwner);
+  const canUploadPdf = canEdit && (isModerator || isOwner);
+  const canUploadAsset = canEdit && (isModerator || isOwner);
+  const canDeleteAsset = canEdit && (isModerator || isOwner);
 
   return (
     <div className="max-w-4xl mx-auto">

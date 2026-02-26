@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, departments, settings, campaigns, schedule
+from app.routers import auth, departments, settings, campaigns, schedule, users
 
 app = FastAPI(
     title="BVMW SendHub",
@@ -22,6 +22,7 @@ app.include_router(departments.router)
 app.include_router(settings.router)
 app.include_router(campaigns.router)
 app.include_router(schedule.router)
+app.include_router(users.router)
 
 
 @app.get("/health")

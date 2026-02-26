@@ -64,8 +64,34 @@ def requester(db, dept):
 
 
 @pytest.fixture
+def moderator(db):
+    u = User(email="mod@example.com", name="Moderator", role=UserRole.moderator, is_admin=False)
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+@pytest.fixture
+def admin(db):
+    from app.auth import hash_password
+    u = User(
+        email="admin@example.com",
+        name="Admin",
+        role=UserRole.moderator,
+        is_admin=True,
+        password_hash=hash_password("testpass123"),
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+# Keep backward-compat alias for existing tests
+@pytest.fixture
 def marketer(db):
-    u = User(email="mkt@example.com", name="Marketer", role=UserRole.marketing)
+    u = User(email="mkt@example.com", name="Marketer", role=UserRole.moderator)
     db.add(u)
     db.commit()
     db.refresh(u)
